@@ -1,0 +1,30 @@
+{
+  "name": "simple-xlsx-template",
+  "version": "1.0.0",
+  "description": "generate a new xlsx from a xlsx template",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uxnow/simple-xlsx-template.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/uxnow/simple-xlsx-template/issues"
+  },
+  "homepage": "https://github.com/uxnow/simple-xlsx-template#readme",
+  "dependencies": {
+    "domhandler": "^3.0.0",
+    "domutils": "^2.1.0",
+    "file-saver": "^2.0.2",
+    "htmlparser2": "^4.1.0",
+    "jszip": "^3.5.0"
+  },
+  "devDependencies": {
+    "js-beautify": "^1.11.0"
+  }
+}
