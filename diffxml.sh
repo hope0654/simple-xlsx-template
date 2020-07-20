@@ -20,7 +20,7 @@ extract() {
 
     for file in `find . -name "*.xml"`
     do
-        html-beautify -f $file -r
+        npx html-beautify -f $file -r
     done
 
     cd $root
