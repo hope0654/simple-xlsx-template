@@ -206,7 +206,7 @@ function patch_sheet_chart(sheet_id, dom, cells) {
         var start_col = parts[2]
         var start_row = +parts[3]
         var end_col = parts[4] || start_col
-        var end_row = +(parts[5] || end_row)
+        var end_row = +(parts[5] || start_row)
 
         var cv_doms = select_all(cf_dom.parent, 'c:pt c:v')
 
@@ -371,10 +371,12 @@ function patch_pptx_chart(chart_path, data, share) {
                             var cells = populated_sheet.populated_cells
 
                             return p.then(function() {
-                                patch_sheet_chart(sheet_id, chart_file_dom, cells)
+                                return patch_sheet_chart(sheet_id, chart_file_dom, cells)
                             })
                         }, Promise.resolve())
-                        return set_zip_file_dom(zip, chart_path, chart_file_dom)
+                        .then(function() {
+                            return set_zip_file_dom(zip, chart_path, chart_file_dom)
+                        })
                     })
                 })
                 .then(function() {
