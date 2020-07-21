@@ -179,6 +179,8 @@ function patch_sheet_chart(sheet_id, dom, cells, share) {
         var cf_dom = cf_doms[i]
         var cf_text = get_dom_text(cf_dom)
         var parts = cf_text.match(/(\w+\d+)!\$(\w+)\$(\d+):\$(\w+)\$(\d+)/)
+
+        if (!parts) continue
         var sheet_idx = parts[1].toLowerCase()
         if (sheet_id !== sheet_idx) continue
 
