@@ -1,2 +1,6 @@
 diffxml.sh
-simple.xlsx
+*-dir/
+
+*.xlsx
+*.pptx
+*.png
