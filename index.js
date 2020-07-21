@@ -24,12 +24,30 @@ function get_zip_file_dom(zip, path) {
     return zip.file(path).async("string").then(xml_to_dom)
 }
 
+function get_zip_file_zip(zip, path) {
+    return zip.file(path).async("arraybuffer").then(JSZip.loadAsync)
+}
+
 function set_zip_file_string(zip, path, content) {
     return zip.file(path, content)
 }
 
 function set_zip_file_dom(zip, path, dom) {
     return zip.file(path, dom_to_xml(dom))
+}
+
+function set_zip_file_buf(zip, path, buf) {
+    return zip.file(path, buf)
+}
+
+function set_zip_file_zip(zip, path, child_zip) {
+    return child_zip.generateAsync({
+        type:"arraybuffer",
+        compression: "DEFLATE",
+    })
+    .then(function(buf) {
+        return set_zip_file_buf(zip, path, buf)
+    })
 }
 
 function xml_to_dom(xml) {
@@ -172,13 +190,13 @@ function get_relations (zip, path) {
     })
 }
 
-function patch_sheet_chart(sheet_id, dom, cells, share) {
+function patch_sheet_chart(sheet_id, dom, cells) {
     var cf_doms = select_all(dom, 'c:ser c:f')
 
     for (var i = 0; i < cf_doms.length; i++) {
         var cf_dom = cf_doms[i]
         var cf_text = get_dom_text(cf_dom)
-        var parts = cf_text.match(/(\w+\d+)!\$(\w+)\$(\d+):\$(\w+)\$(\d+)/)
+        var parts = cf_text.match(/(\w+\d+)!\$(\w+)\$(\d+)(?::\$(\w+)\$(\d+))?/)
 
         if (!parts) continue
         var sheet_idx = parts[1].toLowerCase()
@@ -187,8 +205,8 @@ function patch_sheet_chart(sheet_id, dom, cells, share) {
 
         var start_col = parts[2]
         var start_row = +parts[3]
-        var end_col = parts[4]
-        var end_row = +parts[5]
+        var end_col = parts[4] || start_col
+        var end_row = +(parts[5] || end_row)
 
         var cv_doms = select_all(cf_dom.parent, 'c:pt c:v')
 
@@ -224,7 +242,7 @@ function patch_sheet_drawing(sheet_id, drawing_path, cells, share) {
 
             return get_zip_file_dom(zip, chart_path)
             .then(function(chart_file_dom) {
-                patch_sheet_chart(sheet_id, chart_file_dom, cells, share)
+                patch_sheet_chart(sheet_id, chart_file_dom, cells)
                 return set_zip_file_dom(zip, chart_path, chart_file_dom)
             })
         }))
@@ -277,6 +295,14 @@ function patch_and_save_sheet(sheet_id, cells, share) {
         .then(function(dom) {
             return patch_sheet(sheet_id, dom, cells, share)
                 .then(function(populated_cells) {
+
+                    // save populated cells to share
+                    // patch pptx will use it
+                    share.populated_sheets.push({
+                        sheet_id: sheet_id,
+                        populated_cells: populated_cells,
+                    })
+
                     if (Object.keys(populated_cells).length === 0) return
                     var drawing_dom = select_all(dom, 'drawing[r:id]')[0]
                     if (!drawing_dom) return
@@ -304,6 +330,7 @@ function patch_xlsx(zip, data) {
     var share = {
         zip,
         shared_string: shared_string_manager(zip),
+        populated_sheets: [],
     }
 
     var sheet_ids = Object.keys(data)
@@ -317,15 +344,173 @@ function patch_xlsx(zip, data) {
         })
     }, Promise.resolve())
         .then(share.shared_string.set)
+        .then(function() {
+            return share.populated_sheets
+        })
 }
 
-function patch(url, data, name) {
+function patch_pptx_chart(chart_path, data, share) {
+
+    var zip = share.zip
+
+    return get_relations(zip, chart_path)
+        .then(function(relations) {
+
+            // onlye the first workbook needed
+            // rid will always be rId1
+            var xlsx_path = relations.rId1
+            return get_zip_file_zip(zip, xlsx_path)
+            .then(function(xlsx_zip) {
+                return patch_xlsx(xlsx_zip, data)
+                .then(function(populated_sheets) {
+                    // generally, populated_sheets only contains one sheet
+                    return get_zip_file_dom(zip, chart_path)
+                    .then(function(chart_file_dom) {
+                        return populated_sheets.reduce(function(p, populated_sheet) {
+                            var sheet_id = populated_sheet.sheet_id
+                            var cells = populated_sheet.populated_cells
+
+                            return p.then(function() {
+                                patch_sheet_chart(sheet_id, chart_file_dom, cells)
+                            })
+                        }, Promise.resolve())
+                        return set_zip_file_dom(zip, chart_path, chart_file_dom)
+                    })
+                })
+                .then(function() {
+                    return set_zip_file_zip(zip, xlsx_path, xlsx_zip)
+                })
+            })
+        })
+
+}
+
+function patch_pptx_image(image_path, image_url, share) {
+    var zip = share.zip
+
+    return fetch_buf(image_url)
+    .then(function(image_buf) {
+        return set_zip_file_buf(zip, image_path, image_buf)
+    })
+}
+
+function patch_and_save_slide(slide_id, actions, share) {
+    var zip = share.zip
+    var slide_path = 'ppt/slides/' + slide_id + '.xml'
+
+    return Promise.resolve()
+    .then(function() {
+        // process text
+        if (!actions.text) return
+        var keys = Object.keys(actions.text)
+        if (keys.length === 0) return
+
+        var source = keys.join('|')
+
+        return get_zip_file_string(zip, slide_path)
+            .then(function(xml) {
+                var regex = new RegExp(source, 'g')
+                newxml = xml.replace(regex, function(key) {
+                    var value = String(actions.text[key])
+                    share.words_length_changed += value.length - key.length
+                    return value
+                })
+                return set_zip_file_string(zip, slide_path, newxml)
+            })
+    })
+    .then(function() {
+        // process image && chart
+        if (!actions.image && !actions.chart) return
+        var image_ids = Object.keys(actions.image)
+        var chart_ids = Object.keys(actions.chart)
+        if (image_ids.length + chart_ids.length === 0) return
+
+        return get_relations(zip, slide_path)
+            .then(function(relations) {
+
+                var options = []
+
+                for (var rid in relations) {
+                    var path = relations[rid]
+                    var action_id = path.split('/').pop().split('.').shift()
+                    if (actions.image[action_id]) {
+                        options.push({
+                            type: 'image',
+                            path: path,
+                            image: actions.image[action_id],
+                        })
+                    } else if (actions.chart[action_id]) {
+                        options.push({
+                            type: 'chart',
+                            path: path,
+                            data: actions.chart[action_id],
+                        })
+                    }
+                }
+
+                return options.reduce(function(p, option) {
+                    return p.then(function() {
+                        if (option.type === 'image') {
+                            return patch_pptx_image(option.path, option.image, share)
+                        } else if (option.type === 'chart') {
+                            return patch_pptx_chart(option.path, option.data, share)
+                        }
+                    })
+                }, Promise.resolve())
+            })
+    })
+}
+
+function patch_pptx_words(zip, words) {
+    var app_path = 'docProps/app.xml'
+
+    return get_zip_file_dom(zip, app_path)
+    .then(function(app_dom) {
+
+        var words_dom = select_all(app_dom, 'Words')[0]
+
+        if (words_dom) {
+            var curent_words = +get_dom_text(words_dom)
+            if (!isNaN(curent_words)) {
+                set_dom_text(words_dom, curent_words + words)
+            }
+        }
+
+        return set_zip_file_dom(zip, app_path, app_dom)
+    })
+}
+
+function patch_pptx(zip, data) {
+
+    var share = {
+        zip,
+        words_length_changed: 0,
+    }
+
+    var slide_ids = Object.keys(data)
+
+    return slide_ids.reduce(function(p, slide_id) {
+        return p.then(function() {
+            var actions = data[slide_id]
+            if (Object.keys(actions).length === 0) return
+
+            return patch_and_save_slide(slide_id, actions, share)
+        })
+    }, Promise.resolve())
+    .then(function() {
+        return patch_pptx_words(zip, share.words_length_changed)
+    })
+}
+
+function patch(url, data, name, type) {
+
+    var patcher = type === 'pptx' ? patch_pptx : patch_xlsx
 
     return fetch_buf(url).then(JSZip.loadAsync)
         .then(function(zip) {
             return Promise.resolve()
                 .then(function() {
-                    return patch_xlsx(zip, data)
+                    return patcher(zip, data)
                 })
                 .then(function() {
                     return zip.generateAsync({

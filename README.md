@@ -2,6 +2,10 @@
 
 在浏览器中根据xlsx模板生产xlsx并下载
 
+### 约定
+
+- 每个sheet用sheetN表示，比如sheet1, sheet2...
+
 ## 功能
 
 - 保留字段原来样式
@@ -23,10 +27,10 @@ npm i simple-xlsx-template
 ## 使用
 
 ```javascript
-import patch_xlsx from 'simple-xlsx-template'
+import patch_template from 'simple-xlsx-template'
 import xlsx_url from './simple.xlsx'
 
-const data = {
+const xlsx_data = {
     sheet1: {
         A1: '满意',
         B1: 45,
@@ -35,8 +39,71 @@ const data = {
 
 const download_filename = 'demo.xlsx'
 
-patch_xlsx(xlsx_url, data, download_filename)
+patch_template(xlsx_url, xlsx_data, download_filename)
 ```
+
+## 支持pptx模板
+
+### 约定
+
+- 每个slide用slideN表示，比如slide1, slide2...
+- 每个image用imageN表示，比如image1, image2...
+- 每个chart用chartN表示，比如chart1, chart2...
+
+### 功能
+
+- 替换文本
+- 替换图片
+- 修改图表
+
+### 不支持
+
+- 每个slide中的具体的image所对应的表示imageN是不确定的，需要尝试, 只有一个的话就用image1
+- 每个slide中的具体的chart所对应的表示chartN是不确定的，需要尝试, 只有一个的话就用chart1
+
+### 使用pptx
+
+```javascript
+import patch_template from 'simple-xlsx-template'
+import pptx_url from './simple.pptx'
+import image_url from './image2.png'
+
+const pptx_data = {
+    slide1: {
+    	// 替换文本
+        text: {
+            'hello world': '你好世界',
+        },
+        // 替换图片
+        image: {
+            image1: image_url,
+        },
+        // 修改图表
+        chart: {
+            chart1: {
+                sheet1: {
+                    A2: '类型x',
+                    B1: '系列y',
+                    B2: 4.3,
+                },
+            },
+        },
+    },
+
+}
+
+const download_filename = 'demo.pptx'
+
+patch_template(pptx_url, pptx_data, download_filename, 'pptx')
+```
+
+## 如何开发
+
+1. 首选选定一个基础的版本，比如v1.xlsx或者v1.pptx
+2. 用编辑器修改部分数据，并另存为第二个版本，比如v2.xlsx或者v2.pptx
+3. 执行命令 `./diffxml.sh v1.xlsx v2.xlsx` 或者 `./diffxml.sh v1.pptx v2.pptx`
+3. 根据diffxml的结果，编写代码实现修改
+4. 打包到前端项目测试结果
 
 ## 证书
 
