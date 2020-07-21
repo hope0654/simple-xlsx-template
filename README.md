@@ -4,7 +4,7 @@
 
 ### 约定
 
-- 每个sheet用sheetN表示，比如sheet1, sheet2...
+- 每个sheet用**sheetN**表示，比如**sheet1**, **sheet2**...
 
 ## 功能
 
@@ -46,9 +46,9 @@ patch_template(xlsx_url, xlsx_data, download_filename)
 
 ### 约定
 
-- 每个slide用slideN表示，比如slide1, slide2...
-- 每个image用imageN表示，比如image1, image2...
-- 每个chart用chartN表示，比如chart1, chart2...
+- 每个slide用**slideN**表示，比如**slide1**, **slide2**...
+- 每个image用**imageN表示，比如**image1**, **image2**...
+- 每个chart用**chartN表示，比如**chart1**, **chart2**...
 
 ### 功能
 
@@ -58,8 +58,8 @@ patch_template(xlsx_url, xlsx_data, download_filename)
 
 ### 不支持
 
-- 每个slide中的具体的image所对应的表示imageN是不确定的，需要尝试, 只有一个的话就用image1
-- 每个slide中的具体的chart所对应的表示chartN是不确定的，需要尝试, 只有一个的话就用chart1
+- 每个slide中的具体的image所对应的表示**imageN**是不确定的，需要尝试, 只有一个的话就用**image1**
+- 每个slide中的具体的chart所对应的表示**chartN**是不确定的，需要尝试, 只有一个的话就用**chart1**
 
 ### 使用pptx
 
